@@ -1,0 +1,1 @@
+Connects to wifi, allows setting a color via colorpicker and sets RGB leds using a PIO Core from the Raspberry pico examples/demos
