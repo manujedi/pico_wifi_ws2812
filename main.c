@@ -21,38 +21,47 @@
 
 #include "generated/ws2812.pio.h"
 
-#define LEDS 77
-uint8_t leds[LEDS*3];
+#include "pico/multicore.h"
+
+#define LEDS 16
+#define LINES 4
+
+uint32_t leds[LINES][LEDS];
 
 
-void setLed(uint16_t led, uint8_t red, uint8_t green, uint8_t blue){
-    leds[led*3+0]=red;
-    leds[led*3+1]=green;
-    leds[led*3+2]=blue;
+void setLed(uint16_t  line, uint16_t led, uint8_t red, uint8_t green, uint8_t blue){
+    leds[line][led] = (red<<16) | (green << 24) | (blue << 8);
 
-}
-
-void ledcopy(uint16_t src, uint16_t dest){
-    leds[dest*3+0] = leds[src*3+0];
-    leds[dest*3+1] = leds[src*3+1];
-    leds[dest*3+2] = leds[src*3+2];
 }
 
 void writeLeds(){
-
-    for (int j = 0; j < LEDS*3; j+=3) {
-        pio_sm_put_blocking(pio0, 0, (leds[j]<<16) + (leds[j+2]<<8) + (leds[j+1]<<24));
+    for (int j = 0; j < LEDS; j++) {
+        pio_sm_put_blocking(pio0, 0, leds[0][j]);
+        pio_sm_put_blocking(pio0, 1, leds[1][j]);
+        pio_sm_put_blocking(pio0, 2, leds[2][j]);
+        pio_sm_put_blocking(pio0, 3, leds[3][j]);
     }
 }
+
+
+
+void core1_entry() {
+    while (1) {
+
+        writeLeds();
+        sleep_ms(10);
+    }
+}
+
 
 int main() {
     stdio_init_all();
 
     PIO pio = pio0;
-    int sm = 0;
     uint offset = pio_add_program(pio, &ws2812_program);
-
-    ws2812_program_init(pio, sm, offset, 2, 800000, 0);
+    for (int i = 0; i < 4; ++i) {
+        ws2812_program_init(pio, i, offset, i+2, 800000, 0);
+    }
 
 
     if (cyw43_arch_init()) {
@@ -75,6 +84,9 @@ int main() {
     uint8_t blue=0;
     uint16_t i=0;
 
+    rgb = 0x000001;
+    multicore_launch_core1(core1_entry);
+
     __attribute__((unused)) struct tcp_pcb *server_pcb = tcp_serveropen();
     while(1){
         printf("alive... %i connected\n", currently_connected);
@@ -85,16 +97,20 @@ int main() {
 
         printf("LED: R: %x, G: %x, B: %x\n",red,green,blue);
 
-        setLed(0,red,green,blue);
+        setLed(0, 0,red,green,blue);
 
-
-        i=LEDS;
-        while(i > 1){
-            i--;
-            ledcopy(i-1,i);
+        for (int j = 1; j < LINES; ++j) {
+            leds[j][0] = leds[j-1][LEDS-1];
+        }
+        for (int j = 0; j <LINES; ++j) {
+            i=LEDS;
+            while(i > 1){
+                i--;
+                leds[j][i] = leds[j][i-1];
+            }
         }
 
-        writeLeds();
+
 
         sleep_ms(1000);
 
