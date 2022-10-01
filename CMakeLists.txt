@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
 #enable pico W (not sure which one is actually needed)
-set(BOARD=pico-w)
-set(PICO_BOARD pico_w)
+#set(BOARD=pico)
+#set(PICO_BOARD pico)
 
 
 # initialize pico-sdk from submodule
@@ -22,9 +22,7 @@ add_compile_options(-Wall
 
 # all of your files
 add_executable(main
-		main.c
-		websites/websites.h
-		tcpserver.c)
+		main.c)
 
 pico_generate_pio_header(main ${CMAKE_CURRENT_LIST_DIR}/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
 
@@ -41,14 +39,15 @@ target_compile_definitions(main PRIVATE
 # Add pico_stdlib library which aggregates commonly used features
 target_link_libraries(main
 		#pico_lwip_iperf
+		pico_stdlib
 		pico_multicore
-		pico_cyw43_arch_lwip_threadsafe_background
-		pico_stdlib)
+		hardware_pio
+		#pico_cyw43_arch_lwip_threadsafe_background
+		)
 
 #use usb serial
 pico_enable_stdio_usb(main 1)
 pico_enable_stdio_uart(main 0)
-
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(main)
