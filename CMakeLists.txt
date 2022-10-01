@@ -31,18 +31,11 @@ target_include_directories(main PRIVATE
 		${CMAKE_CURRENT_LIST_DIR}
 		)
 
-target_compile_definitions(main PRIVATE
-		WIFI_SSID=\"ssid\"
-		WIFI_PASSWORD=\"password\"
-		)
 
 # Add pico_stdlib library which aggregates commonly used features
 target_link_libraries(main
-		#pico_lwip_iperf
 		pico_stdlib
-		pico_multicore
 		hardware_pio
-		#pico_cyw43_arch_lwip_threadsafe_background
 		)
 
 #use usb serial

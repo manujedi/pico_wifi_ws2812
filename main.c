@@ -7,25 +7,44 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+
 #include <pico/printf.h>
+#include <pico/stdlib.h>
 
-#include "pico/stdlib.h"
-
-#include "hardware/pio.h"
-#include "hardware/clocks.h"
+#include <hardware/pio.h>
+#include <hardware/clocks.h>
+#include <hardware/regs/rosc.h>
+#include <hardware/regs/addressmap.h>
 
 #include "generated/ws2812.pio.h"
 
-#include "pico/multicore.h"
-
 
 #define LEDS 16
-#define LINES 6
+#define ROWS 6
+#define DROPS 10
 
-uint32_t leds[LINES][LEDS];
+volatile uint32_t leds[ROWS][LEDS];
+
+typedef struct DROP {
+    uint8_t col;
+    uint8_t row;
+    uint32_t color;
+} DROP;
+
 
 volatile uint32_t refreshrate = 0;
 
+
+uint32_t rnd(void) {
+    int k, random = 0;
+    volatile uint32_t *rnd_reg = (uint32_t *) (ROSC_BASE + ROSC_RANDOMBIT_OFFSET);
+
+    for (k = 0; k < 32; k++) {
+        random = random << 1;
+        random = random + (0x00000001 & (*rnd_reg));
+    }
+    return random;
+}
 
 void setLed(uint16_t line, uint16_t led, uint8_t red, uint8_t green, uint8_t blue) {
     leds[line][led] = (red << 16) | (green << 24) | (blue << 8);
@@ -38,12 +57,23 @@ void writeLeds() {
     //write all
     for (int j = 0; j < LEDS; j++) {
         pio_sm_put_blocking(pio0, 0, leds[0][j]);
+    }
+    for (int j = 0; j < LEDS; j++) {
         pio_sm_put_blocking(pio0, 1, leds[1][j]);
+    }
+    for (int j = 0; j < LEDS; j++) {
         pio_sm_put_blocking(pio0, 2, leds[2][j]);
+    }
+    for (int j = 0; j < LEDS; j++) {
         pio_sm_put_blocking(pio0, 3, leds[3][j]);
+    }
+    for (int j = 0; j < LEDS; j++) {
         pio_sm_put_blocking(pio1, 0, leds[4][j]);
+    }
+    for (int j = 0; j < LEDS; j++) {
         pio_sm_put_blocking(pio1, 1, leds[5][j]);
     }
+
 
 }
 
@@ -51,71 +81,6 @@ bool timer_callback(struct repeating_timer *t) {
     refreshrate++;
     writeLeds();
     return true;
-}
-
-void core1_entry() {
-
-    uint8_t red = 0;
-    uint8_t green = 0;
-    uint8_t blue = 0;
-    uint8_t state = 0;
-
-    while (1) {
-
-        switch (state) {
-            //from red to green
-            case 0:
-                red--;
-                green++;
-                if (green == 255) {
-                    red = 0;
-                    state = 1;
-                }
-                break;
-            case 1:
-                //green to blue
-                green--;
-                blue++;
-                if (blue == 255) {
-                    green = 0;
-                    state = 2;
-                }
-                break;
-            case 2:
-                //blue to red
-                blue--;
-                red++;
-                if (red == 255) {
-                    blue = 0;
-                    state = 0;
-                }
-                break;
-            default:
-                break;
-        }
-
-        setLed(0, 0, red, green, blue);
-
-
-
-        for (int line = LINES-1; line >= 0; line--) {
-            for (int led = LEDS-1; led >= 0; led--) {
-                if(led == 0 && line != 0) {
-                    leds[line][0] = leds[line-1][LEDS-1];
-                    continue;
-                }
-
-                if(led == 0)
-                    continue;
-
-                leds[line][led] = leds[line][led-1];
-            }
-        }
-        sleep_ms(1000);
-    }
-
-
-
 }
 
 
@@ -132,22 +97,44 @@ int main() {
     ws2812_program_init(pio1, 1, offset1, 16, 800000, 0);
 
 
-    setLed(LINES - 1, LEDS - 1, 0xf, 0xf, 0xf);
+    //struct repeating_timer timer;
+    //add_repeating_timer_us(-100000, timer_callback, NULL, &timer); //120HZ
 
-    struct repeating_timer timer;
-    add_repeating_timer_ms(-1000, timer_callback, NULL, &timer); //120HZ
-
-    multicore_launch_core1(core1_entry);
+    //multicore_launch_core1(core1_entry);
 
 
-    while (1) {
-        printf("refreshrate: %iHz\n", refreshrate);
-        refreshrate = 0;
-        sleep_ms(1000);
+    volatile DROP drop[DROPS];
 
+    for (int i = 0; i < DROPS; ++i) {
+        drop[i].row = 0x0;
+        drop[i].col = 0x0;
+        drop[i].color = 0xFFFFFF00;
     }
 
+    srand(rnd());
 
+    while (1) {
+
+        for (int i = 0; i < DROPS; ++i) {
+            printf("drop[%i].row%i\n", i,drop[i].row);
+            if (drop[i].row >= ROWS) {
+                if((((uint32_t) rand()) & 0x3) == 0) {            //async
+                    printf("resetting drop %i\n",i);
+                    drop[i].col = ((uint32_t) rand()) & 0xF;
+                    drop[i].row = 0;
+                    drop[i].color = ((uint32_t) rand()) & 0xFFFFFF00;
+                }
+            }else{
+                leds[drop[i].row][drop[i].col] = drop[i].color;
+                drop[i].row++;
+            }
+        }
+
+        writeLeds();
+
+        sleep_ms(100);
+
+    }
 
 
     return 0;
