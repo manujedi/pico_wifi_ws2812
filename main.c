@@ -21,16 +21,8 @@
 
 #define LEDS 16
 #define ROWS 6
-#define DROPS 10
 
 volatile uint32_t leds[ROWS][LEDS];
-
-typedef struct DROP {
-    uint8_t col;
-    uint8_t row;
-    uint32_t color;
-} DROP;
-
 
 volatile uint32_t refreshrate = 0;
 
@@ -102,37 +94,55 @@ int main() {
 
     //multicore_launch_core1(core1_entry);
 
-
-    volatile DROP drop[DROPS];
-
-    for (int i = 0; i < DROPS; ++i) {
-        drop[i].row = 0x0;
-        drop[i].col = 0x0;
-        drop[i].color = 0xFFFFFF00;
-    }
-
     srand(rnd());
+
+    uint8_t w_r = 0xff;
+    uint8_t w_g = 0xff;
+    uint8_t w_b = 0xff;
+
+    uint8_t red = 0xff;
+    uint8_t green = 0xff;
+    uint8_t blue = 0xff;
+
 
     while (1) {
 
-        for (int i = 0; i < DROPS; ++i) {
-            printf("drop[%i].row%i\n", i,drop[i].row);
-            if (drop[i].row >= ROWS) {
-                if((((uint32_t) rand()) & 0x3) == 0) {            //async
-                    printf("resetting drop %i\n",i);
-                    drop[i].col = ((uint32_t) rand()) & 0xF;
-                    drop[i].row = 0;
-                    drop[i].color = ((uint32_t) rand()) & 0xFFFFFF00;
-                }
-            }else{
-                leds[drop[i].row][drop[i].col] = drop[i].color;
-                drop[i].row++;
-            }
+        if(rand()%0xFF == 0) {
+            w_r = rand() & 0xff;
+            w_g = rand() & 0xff;
+            w_b = rand() & 0xff;
         }
 
-        writeLeds();
+        while (red != w_r || green != w_g || blue != w_b){
+            if(w_r > red)
+                red++;
+            if(w_r < red)
+                red--;
+            if (w_b > blue)
+                blue++;
+            if (w_b < blue)
+                blue--;
+            if (w_g > green)
+                green++;
+            if (w_g < green)
+                green--;
 
+            setLed(0,0,red,green,blue);
+
+            for (int i = ROWS-1; i > 0; i--) {
+                leds[i][0] = leds[i-1][0];
+            }
+
+            for (int i = LEDS-1; i > 0; i--) {
+                for (int j = 0; j < ROWS; ++j) {
+                    leds[j][i] = leds[j][i-1];
+                }
+            }
+            writeLeds();
+            sleep_ms(10);
+        }
         sleep_ms(100);
+
 
     }
 
