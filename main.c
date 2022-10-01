@@ -47,25 +47,32 @@ void setLed(uint16_t line, uint16_t led, uint8_t red, uint8_t green, uint8_t blu
 void writeLeds() {
 
     //write all
-    for (int j = 0; j < LEDS; j++) {
-        pio_sm_put_blocking(pio0, 0, leds[0][j]);
-    }
-    for (int j = 0; j < LEDS; j++) {
-        pio_sm_put_blocking(pio0, 1, leds[1][j]);
-    }
-    for (int j = 0; j < LEDS; j++) {
-        pio_sm_put_blocking(pio0, 2, leds[2][j]);
-    }
-    for (int j = 0; j < LEDS; j++) {
-        pio_sm_put_blocking(pio0, 3, leds[3][j]);
-    }
-    for (int j = 0; j < LEDS; j++) {
-        pio_sm_put_blocking(pio1, 0, leds[4][j]);
-    }
-    for (int j = 0; j < LEDS; j++) {
-        pio_sm_put_blocking(pio1, 1, leds[5][j]);
-    }
+    for (int j = 0; j < LEDS; ++j) {
 
+        while ((pio0->fstat  & (1u << (PIO_FSTAT_TXFULL_LSB + 0))) != 0)
+            ;
+        pio0->txf[0] = leds[0][j];
+
+        while ((pio0->fstat  & (1u << (PIO_FSTAT_TXFULL_LSB + 1))) != 0)
+            ;
+        pio0->txf[1] = leds[1][j];
+
+        while ((pio0->fstat  & (1u << (PIO_FSTAT_TXFULL_LSB + 2))) != 0)
+            ;
+        pio0->txf[2] = leds[2][j];
+
+        while ((pio0->fstat  & (1u << (PIO_FSTAT_TXFULL_LSB + 3))) != 0)
+            ;
+        pio0->txf[3] = leds[3][j];
+
+        while ((pio1->fstat  & (1u << (PIO_FSTAT_TXFULL_LSB + 0))) != 0)
+            ;
+        pio1->txf[0] = leds[4][j];
+
+        while ((pio1->fstat  & (1u << (PIO_FSTAT_TXFULL_LSB + 1))) != 0)
+            ;
+        pio1->txf[1] = leds[5][j];
+    }
 
 }
 
@@ -96,9 +103,9 @@ int main() {
 
     srand(rnd());
 
-    uint8_t w_r = 0xff;
-    uint8_t w_g = 0xff;
-    uint8_t w_b = 0xff;
+    uint8_t w_r;
+    uint8_t w_g;
+    uint8_t w_b;
 
     uint8_t red = 0xff;
     uint8_t green = 0xff;
@@ -107,11 +114,14 @@ int main() {
 
     while (1) {
 
-        if(rand()%0xFF == 0) {
-            w_r = rand() & 0xff;
-            w_g = rand() & 0xff;
-            w_b = rand() & 0xff;
-        }
+        while (rand()%0x1F == 0)
+            sleep_ms(1000);
+
+
+        w_r = rand() & 0xff;
+        w_g = rand() & 0xff;
+        w_b = rand() & 0xff;
+
 
         while (red != w_r || green != w_g || blue != w_b){
             if(w_r > red)
@@ -129,19 +139,15 @@ int main() {
 
             setLed(0,0,red,green,blue);
 
-            for (int i = ROWS-1; i > 0; i--) {
-                leds[i][0] = leds[i-1][0];
-            }
-
-            for (int i = LEDS-1; i > 0; i--) {
-                for (int j = 0; j < ROWS; ++j) {
-                    leds[j][i] = leds[j][i-1];
+            for (int i = 0; i < ROWS; ++i) {
+                for (int j = 0; j < LEDS; ++j) {
+                    setLed(i,j,red,green,blue);
                 }
             }
+
             writeLeds();
-            sleep_ms(10);
+            sleep_ms(100);
         }
-        sleep_ms(100);
 
 
     }
